@@ -1,0 +1,51 @@
+{% extends 'layout/base.html' %}
+{% block title %}Tin nhắn{% endblock %}
+
+{% block content %}
+<div class="container-fluid vh-100 d-flex align-items-center justify-content-center">
+    <div class="w-100" style="max-width: 800px;">
+        <form method="post" class="bg-white shadow-lg p-5 rounded-5 border border-2 border-primary">
+            <h1 class="text-center text-primary fw-bold mb-5">💬 Vào Phòng Chat</h1>
+
+            <div class="mb-4">
+                <label for="name" class="form-label fs-4">👤 Tên của bạn</label>
+                <input
+                    type="text"
+                    class="form-control form-control-lg"
+                    id="name"
+                    placeholder="Nhập tên của bạn..."
+                    name="name"
+                    value="{{ name }}"
+                />
+            </div>
+
+            <div class="mb-4">
+                <label for="code" class="form-label fs-4">🔐 Mã Phòng</label>
+                <input
+                    type="text"
+                    class="form-control form-control-lg"
+                    id="code"
+                    placeholder="Nhập mã phòng (nếu có)..."
+                    name="code"
+                    value="{{ code }}"
+                />
+            </div>
+
+            <div class="d-grid gap-4">
+                <button type="submit" name="join" class="btn btn-primary btn-lg fw-semibold">
+                    🚪 Tham gia phòng
+                </button>
+                <button type="submit" name="create" class="btn btn-success btn-lg fw-semibold">
+                    ➕ Tạo phòng mới
+                </button>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger text-center mt-4 fs-5">
+                {{ error }}
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

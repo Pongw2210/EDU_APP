@@ -1,0 +1,137 @@
+{% extends 'layout/base.html' %}
+{% block title %}Thông tin cá nhân{% endblock %}
+
+{% block content %}
+<div class="container emp-profile">
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('upload_avatar') }}">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="profile-img">
+                    <img id="avatarPreview" src="{{ current_user.avatar }}" alt="Avatar" style="max-width: 200px;"/>
+                    <div class="file btn btn-lg btn-primary mt-2">
+                        Chọn ảnh
+                        <input type="file" name="avatar" id="avatar"/>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột thông tin người dùng -->
+            <div class="col-md-6">
+                <div class="profile-head">
+                    <h5>
+                        {% if current_user.teacher %}
+                        {{ current_user.teacher.fullname }}
+                        {% elif current_user.staff %}
+                        {{ current_user.staff.fullname }}
+                        {% endif %}
+                    </h5>
+
+                    <h6>
+                        {{ current_user.role.value }}
+                    </h6>
+
+                    <ul class="nav nav-tabs" id="myTab" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="home-tab" data-toggle="tab" role="tab"
+                               aria-controls="home" aria-selected="true">Thông tin cá nhân</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nội dung thông tin cá nhân -->
+        <div class="row mt-4">
+            <div class="col-md-8 offset-md-4">
+                <div class="tab-content profile-tab" id="myTabContent">
+                    <div class="tab-pane fade show active" id="home" role="tabpanel" aria-labelledby="home-tab">
+
+                        <div class="row">
+                            <div class="col-md-6"><label>ID Người dùng</label></div>
+                            <div class="col-md-6"><p>{{ current_user.id }}</p></div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6"><label>Tên đăng nhập</label></div>
+                            <div class="col-md-6"><p>{{ current_user.username }}</p></div>
+                        </div>
+
+                        {% set person = current_user.teacher or current_user.staff %}
+
+                        {% if person %}
+                        <div class="row">
+                            <div class="col-md-6"><label>Họ và Tên</label></div>
+                            <div class="col-md-6"><p>{{ person.fullname }}</p></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6"><label>Email</label></div>
+                            <div class="col-md-6"><p>{{ person.email }}</p></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6"><label>Giới tính</label></div>
+                            <div class="col-md-6"><p>{{ person.gender }}</p></div>
+                        </div>
+                        {% endif %}
+
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="text-left">
+            <button type="button" id="saveAvatarBtn" class="profile-edit-avt-btn">Lưu thay đổi
+            </button>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="alert-container">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+    </form>
+</div>
+
+<script>
+    document.getElementById("avatar").addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Hiển thị preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById("avatarPreview").src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+
+            // Tự động upload khi chọn ảnh
+            const form = document.getElementById("avatarForm");
+            const formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Tạo 1 thẻ tạm chứa HTML response để lấy flash message
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+
+                // Lấy message trong response nếu có
+                const alertBox = tempDiv.querySelector('.alert-container');
+                if (alertBox) {
+                    document.getElementById("flashMessage").innerHTML = alertBox.innerHTML;
+                }
+
+                // Lấy lại src ảnh mới từ Cloudinary nếu muốn (nếu trả về link mới)
+                // Hoặc reload nếu cần
+            });
+        }
+    });
+</script>
+{% endblock %}
