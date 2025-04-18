@@ -1,0 +1,110 @@
+{% extends 'layout/base_form.html' %}
+{% block title %}Điều chỉnh lớp học{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+    <h2 class="text text-primary">ĐIỀU CHỈNH LỚP HỌC</h2>
+
+    <form id="form_edit_class" method="POST" action="{{ url_for('edit_class') }}">
+        <div class="mb-3">
+            <!-- Chọn lớp -->
+            <label for="class_select" class="form-label">Chọn lớp cần điều chỉnh:</label>
+            <select id="class_select" class="form-select" onchange="onClassChange()">
+                <option value="">-- Chọn lớp học --</option>
+                {% for cls in classes %}
+                <option value="{{ cls.id }}"
+                        data-teacher-id="{{ teacher.id if teacher else '' }}"
+                        data-teacher-name="{{ teacher.fullname if teacher else 'Chưa có' }}">
+                    {{ cls.name }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <!-- Hiển thị giáo viên chủ nhiệm hiện tại -->
+            <div class="mt-3">
+                <label class="form-label">Giáo viên chủ nhiệm:</label>
+                <div id="current_teacher_label" class="fw-bold text-primary">Chưa chọn lớp</div>
+            </div>
+        </div>
+
+        <!-- Giáo viên chủ nhiệm -->
+        <label for="teacher">Chọn lại giáo viên chủ nhiệm (nếu cần):</label>
+        <select name="teacher" id="teacher" class="form-select select2">
+            <option value="">-- Chọn giáo viên --</option>
+            {% for t in teachers %}
+            <option value="{{ t.id }}" {% if t.assigned %}disabled{% endif %}>
+                {{ t.fullname }}{% if t.assigned %} (Đã có lớp){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label for="student">Danh sách học sinh của lớp:</label>
+        <table id="studentTable_class" class="display nowrap table table-bordered" style="width:100%">
+            <thead>
+            <tr>
+                <th>STT</th>
+                <th>Họ và tên</th>
+                <th>Ngày sinh</th>
+                <th>Giới tính</th>
+                <th>Địa chỉ</th>
+                <th>SĐT</th>
+                <th>Email</th>
+                <th>Xóa</th>
+            </tr>
+            </thead>
+            <tbody id="available_student_table">
+            <!-- JavaScript sẽ đổ dữ liệu vào đây -->
+            </tbody>
+        </table>
+
+        <!-- Nút bấm để hiện danh sách học sinh chưa có lớp -->
+        <div class="mt-4">
+            <button type="button" class="btn btn-info" onclick="toggleAddStudent()">Thêm học sinh vào lớp</button>
+        </div>
+        <!-- Danh sách học sinh chưa có lớp - ẩn ban đầu -->
+        <div class="container mt-4" id="unassigned_students_container" style="display: none;">
+            <label>Danh sách học sinh chưa có lớp:</label>
+            <table id="studentTable" class="display nowrap table table-bordered datatable" style="width:100%">
+                <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAllUnStudents" onclick="toggleSelectAll(selectAllUnStudents,'unassigned_student_id')"></th>
+                    <th>STT</th>
+                    <th>Họ và tên</th>
+                    <th>Ngày sinh</th>
+                    <th>Giới tính</th>
+                    <th>Địa chỉ</th>
+                    <th>SĐT</th>
+                    <th>Email</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for s in unassigned_students %}
+                <tr>
+                    <td>
+                        <input type="checkbox" name="unassigned_student_id" value="{{ s.id }}">
+                    </td>
+                    <td>{{ s.id }}</td>
+                    <td>{{ s.fullname }}</td>
+                    <td>{{ s.dob.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ s.gender }}</td>
+                    <td>{{ s.address }}</td>
+                    <td>{{ s.phone }}</td>
+                    <td>{{ s.email }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="btn-group d-flex justify-content-start gap-3 mt-3">
+            <button type="button" class="btn btn-primary" onclick="saveEClass()">Lưu</button>
+            <button type="button" class="btn btn-success" onclick="saveDraftEClass()">Lưu nháp</button>
+            <button type="button" class="btn btn-warning" onclick="deleteAll('form_edit_class')">Xóa tất cả</button>
+            <button type="button" class="btn btn-danger" onclick="cancelAll()">Hủy</button>
+        </div>
+        <div id="responseMessage" class="mt-3"></div>
+    </form>
+</div>
+
+
+{% endblock %}

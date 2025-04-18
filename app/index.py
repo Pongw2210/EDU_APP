@@ -1,6 +1,4 @@
 from flask import render_template, redirect, request, flash, url_for, session
-
-
 from app import app,login,db,dao,socketio
 from flask_login import current_user, login_user, logout_user, login_required
 import cloudinary
@@ -8,7 +6,7 @@ from cloudinary import uploader
 import dao
 from datetime import datetime
 #
-from models import  UserEnum
+from models import UserEnum, Class, Teacher_Class, Student_Class
 
 from io import BytesIO
 from openpyxl import Workbook
@@ -181,6 +179,126 @@ def disconnect():
 
     send({"name": name, "message": "đã rời khỏi cuộc trò chuyện"}, to=room)
     print(f"{name} has left the room {room}")
+
+@app.route("/register_student")
+def register_student():
+    max_age = dao.get_max_age()
+    min_age = dao.get_min_age()
+
+
+    return render_template("register_student.html",
+                           max_age=max_age,min_age=min_age)
+
+@app.route('/api/save_student', methods=['POST'])
+def save_student():
+    data = request.get_json()
+
+    # Lấy dữ liệu từ form
+    fullname = data.get('fullname')
+    dob = data.get('dob')
+    gender = data.get('gender')
+    address = data.get('address')
+    phone = data.get('phone')
+    email = data.get('email')
+
+    # Kiểm tra tất cả trường phải được điền đầy đủ
+    if not fullname or not dob or not gender or not address or not phone:
+        return jsonify({"success": False, "message": "Tất cả các trường phải được điền đầy đủ (ngoại trừ email)!"})
+
+    # Tạo đối tượng Student mới
+    new_student = Student(
+        fullname=fullname,
+        dob=dob,
+        gender=gender,
+        address=address,
+        phone=phone,
+        email=email
+    )
+
+    # Thêm sinh viên vào cơ sở dữ liệu
+    try:
+        db.session.add(new_student)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Dữ liệu đã được lưu thành công!"})
+
+    except Exception as e:
+        db.session.rollback()  # Rollback nếu có lỗi
+        return jsonify({"success": False, "message": "Có lỗi xảy ra khi lưu dữ liệu: " + str(e)})
+
+@app.route('/add_class')
+def add_class():
+    grades=dao.load_gradeEnum()
+    available_teachers=dao.load_teachers_with_assign_status()
+    available_students=dao.load_students_with_assign_status()
+    max_student = dao.get_max_student()
+    return render_template("add_class.html",grades=grades,
+                           available_teachers=available_teachers,available_students=available_students,
+                           max_student=max_student)
+
+@app.route('/api/save_class', methods=['POST'])
+def save_class():
+    data = request.get_json()
+    classname = data.get("classname")
+    grade = data.get("grade")
+    teacher_id = data.get("teacher_id")
+    student_ids = data.get("student_ids")
+
+    # Kiểm tra xem lớp học đã tồn tại chưa
+    existing_class = Class.query.filter_by(name=classname).first()
+    if existing_class:
+        return jsonify({'success': False, 'message': 'Lớp học đã tồn tại'})
+
+    # Tạo lớp học mới
+    new_class = Class(name=classname, grade=grade, number_of_students=len(student_ids))
+    db.session.add(new_class)
+    db.session.commit()
+
+    # Liên kết giáo viên chủ nhiệm với lớp
+    teacher_class = Teacher_Class(teacher_id=teacher_id, class_id=new_class.id, time=datetime.now())
+    db.session.add(teacher_class)
+    db.session.commit()
+
+    # Liên kết học sinh với lớp
+    for student_id in student_ids:
+        student = Student.query.get(student_id)
+        if student and not student.classes:  # chỉ thêm nếu chưa có lớp nào
+            student_class = Student_Class(student_id=student_id, class_id=new_class.id, date_of_join=datetime.now())
+            db.session.add(student_class)
+
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Lớp học đã được tạo thành công.'})
+
+@app.route('/edit_class')
+def edit_class():
+    classes=dao.load_class()
+    teachers=dao.load_teachers_with_assign_status()
+    unassigned_students=dao.load_unassigned_students()
+    return render_template("edit_class.html",classes=classes,teachers=teachers,
+                           unassigned_students=unassigned_students)
+@app.route('/api/class_info/<int:class_id>')
+def get_class_info(class_id):
+    cls = dao.load_class(class_id)
+
+    # Tìm giáo viên chủ nhiệm
+    teacher_class = Teacher_Class.query.filter_by(class_id=class_id).first()
+    teacher = teacher_class.teacher if teacher_class else None
+
+    # Lấy danh sách học sinh từ bảng phụ student_class
+    student_data = [{
+        'id': sc.student.id,
+        'fullname': sc.student.fullname,
+        'dob': sc.student.dob.strftime('%d/%m/%Y'),
+        'gender': sc.student.gender,
+        'address': sc.student.address,
+        'phone': sc.student.phone,
+        'email': sc.student.email
+    } for sc in cls.students]
+
+    return jsonify({
+        'teacher_name': teacher.fullname if teacher else 'Chưa có giáo viên',
+        'students': student_data
+    })
 
 if __name__ == '__main__':
     from app.admin import *

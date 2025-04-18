@@ -1,6 +1,6 @@
 import hashlib
-from models import User
-
+from models import User, Regulation, GradeEnum, Teacher, Student, Class
+from app import app
 def get_user_by_id(user_id):
     return User.query.get(user_id)
 
@@ -15,3 +15,42 @@ def auth_user(username, password, role=None):
         query = query.filter(User.role == role)
 
     return query.first()
+
+def get_max_age():
+    return int(Regulation.query.filter_by(name="Số tuổi tối đa").first().content)
+
+def get_min_age():
+    return int(Regulation.query.filter_by(name="Số tuổi tối thiểu").first().content)
+
+def get_max_student():
+    return int(Regulation.query.filter_by(name="Số học sinh tối đa").first().content)
+
+def load_gradeEnum():
+    return {
+        grade.name: grade.value  # "KHOI_10": "Khối 10"
+        for grade in GradeEnum
+    }
+
+def load_teachers_with_assign_status():
+    teachers = Teacher.query.all()
+    for t in teachers:
+        t.assigned = len(t.classes) > 0
+    return teachers
+
+def load_students_with_assign_status():
+    students = Student.query.all()
+    for s in students:
+        s.assigned = len(s.classes) > 0
+    return students
+
+def load_class(class_id = None):
+    q = Class.query.all()
+
+    if class_id:
+        q = Class.query.get(class_id)
+
+    return q
+
+def load_unassigned_students():
+    # Trả về danh sách các học sinh chưa thuộc bất kỳ lớp nào
+    return Student.query.filter(~Student.classes.any()).all()
