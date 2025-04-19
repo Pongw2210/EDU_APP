@@ -1,20 +1,16 @@
 from flask import render_template, redirect, request, flash, url_for, session
-from app import app,login,db,dao,socketio
+from app import app, login, db, dao, socketio, max_score_count_15, max_score_count_45
 from flask_login import current_user, login_user, logout_user, login_required
 import cloudinary
 from cloudinary import uploader
 import dao
 from datetime import datetime
-#
-from models import UserEnum, Class, Teacher_Class, Student_Class
+
+from models import UserEnum, Class, Teacher_Class, Student_Class, GradeEnum, Teacher, Subject_Teacher_Class, Subject, \
+    Score, ScoreTypeEnum
 
 from io import BytesIO
 from openpyxl import Workbook
-
-# import warnings
-# from sqlalchemy.exc import SAWarning
-#
-# warnings.filterwarnings('ignore', category=SAWarning)
 
 from flask_socketio import join_room,leave_room,send,SocketIO
 import random
@@ -332,6 +328,129 @@ def save_edit_class():
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': f'Lỗi khi cập nhật: {str(e)}'})
+
+@app.route('/update_score')
+def update_score():
+    grades=dao.load_gradeEnum()
+    semesters=dao.load_semester()
+    max_15 = max_score_count_15
+    max_45 = max_score_count_45
+
+    return render_template("update_score.html",grades = grades,semesters = semesters,
+                           max_15 = max_15, max_45 = max_45)
+
+@app.route('/api/get_classes_by_grade/<grade>', methods=['GET'])
+def get_classes_by_grade(grade):
+
+    grade_enum = GradeEnum[grade]
+    classes = dao.load_class(grade=grade_enum)
+    result = [{'id': cls.id, 'name': cls.name} for cls in classes]
+    return jsonify(result)
+
+@app.route('/api/get_subject_by_teachID_classID/<int:class_id>', methods=['GET'])
+def get_subject_by_teachID_classID(class_id):
+    if not current_user.is_authenticated:
+        return {"error": "Unauthorized"}
+
+    teacher = Teacher.query.filter_by(user_id=current_user.id).first()
+    if not teacher:
+        return {"error": "Teacher not found"}
+
+    stc_list = Subject_Teacher_Class.query \
+        .filter_by(teacher_id=teacher.id, class_id=class_id) \
+        .join(Subject) \
+        .all()
+
+    result = [{"id": stc.subject.id, "name": stc.subject.name} for stc in stc_list]
+
+    return jsonify(result)
+
+@app.route('/api/save_update_score', methods=['POST'])
+def save_update_score():
+    data = request.get_json()
+
+    semester_id = data.get("semester_id")
+    subject_id = data.get("subject_id")
+    scores = data.get("scores", [])
+
+    if not semester_id or not subject_id:
+        return jsonify({"success": False, "message": "Các trường phải cập nhật đầy đủ"})
+
+    skipped_students = []  # Danh sách học sinh bị bỏ qua
+
+    try:
+        for s in scores:
+            student_id = s.get("student_id")
+
+            # Truy vấn điểm hiện có của học sinh đó
+            existing_scores = Score.query.filter_by(
+                student_id=student_id,
+                subject_id=subject_id,
+                semester_id=semester_id
+            ).all()
+
+            # Kiểm tra điều kiện
+            count_15 = sum(1 for score in existing_scores if score.score_type == ScoreTypeEnum.DIEM_15)
+            count_45 = sum(1 for score in existing_scores if score.score_type == ScoreTypeEnum.DIEM_45)
+            has_exam = any(score.score_type == ScoreTypeEnum.DIEM_THI for score in existing_scores)
+
+            if count_15 >= 5 or count_45 >= 3 or has_exam:
+                skipped_students.append(student_id)
+                continue  # Bỏ qua học sinh này
+
+            # Nếu chưa đủ, thêm điểm
+            for val in s.get("score15p", []):
+                if val is not None:
+                    db.session.add(Score(
+                        student_id=student_id,
+                        semester_id=semester_id,
+                        subject_id=subject_id,
+                        score=val,
+                        score_type=ScoreTypeEnum.DIEM_15,
+                    ))
+
+            for val in s.get("score45p", []):
+                if val is not None:
+                    db.session.add(Score(
+                        student_id=student_id,
+                        semester_id=semester_id,
+                        subject_id=subject_id,
+                        score=val,
+                        score_type=ScoreTypeEnum.DIEM_45,
+                    ))
+
+            # Thêm điểm thi nếu chưa có
+            exam_score = s.get("exam_score")
+            if exam_score is not None:
+                existing_exam_score = next(
+                    (score for score in existing_scores if score.score_type == ScoreTypeEnum.DIEM_THI),
+                    None
+                )
+                if not existing_exam_score:
+                    db.session.add(Score(
+                        student_id=student_id,
+                        semester_id=semester_id,
+                        subject_id=subject_id,
+                        score=exam_score,
+                        score_type=ScoreTypeEnum.DIEM_THI,
+                    ))
+
+        db.session.commit()
+
+        if skipped_students:
+            return jsonify({
+                "success": True,
+                "message": f"Cập nhật điểm thành công. {len(skipped_students)} học sinh đã đủ điểm nên bị bỏ qua.",
+                "skipped": skipped_students
+            })
+        else:
+            return jsonify({"success": True, "message": "Cập nhật điểm thành công."})
+
+    except Exception as ex:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Lỗi khi cập nhật: {str(ex)}'})
+
+
 if __name__ == '__main__':
     from app.admin import *
 

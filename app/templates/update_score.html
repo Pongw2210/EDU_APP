@@ -1,0 +1,76 @@
+{% extends 'layout/base_form.html' %}
+{% block title %}Nhập điểm{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+    <h2 class="text text-primary">NHẬP ĐIỂM</h2>
+
+    <form id="form_update_score" method="POST" action="{{ url_for('update_score') }}">
+        <div class="mb-3">
+            <label for="grade">Khối:</label>
+            <select name="grade" id="grade" onchange="onGradeChange()" required>
+                <option value="">-- Chọn khối --</option>
+                {% for key, label in grades.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="class_select">Lớp:</label>
+            <select name="class_id" id="class_select" onchange="onClassSubjectChange()" required>
+                <option value="">-- Chọn lớp --</option>
+            </select>
+
+            <label>Học kỳ:</label>
+            <select name="semester" id="semester" required>
+                <option value="">-- Chọn học kỳ --</option>
+                {% for s in semesters %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="subject_select">Môn học đang dạy:</label>
+            <select name="subject_id" id="subject_select" onchange="onClassScoreChange()" required>
+                <option value="">-- Chọn môn học --</option>
+            </select>
+
+            <label>Danh sách học sinh của lớp:</label>
+            <table id="studentTable_class" class="display nowrap table table-bordered" style="width:100%">
+                <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Họ và tên</th>
+
+                    <th id="score15p_header" colspan="1">Điểm 15'
+                        <div class="btn-group d-flex justify-content-start gap-3 mt-3">
+                            <button type="button" class="btn btn-success" onclick="addScoreColumn('score15p', {{max_15}}, '15 phút')">+</button>
+                            <button type="button" class="btn btn-danger" onclick="removeScoreColumn('score15p', 1)">-</button>
+                        </div>
+                    </th>
+
+                    <th id="score45p_header" colspan="1">Điểm 45'
+                        <div class="btn-group d-flex justify-content-start gap-3 mt-3">
+                            <button type="button" class="btn btn-success" onclick="addScoreColumn('score45p', {{max_45}}, '45 phút')">+</button>
+                            <button type="button" class="btn btn-danger" onclick="removeScoreColumn('score45p', 1)">-</button>
+                        </div>
+                    </th>
+
+                    <th>Điểm thi</th>
+                </tr>
+                </thead>
+                <tbody id="available_student_table">
+                <!-- JavaScript sẽ đổ dữ liệu vào đây -->
+                </tbody>
+            </table>
+
+            <div class="btn-group d-flex justify-content-start gap-3 mt-3">
+                <button type="button" class="btn btn-primary" onclick="saveUpdateScore()">Lưu</button>
+                <button type="button" class="btn btn-success" onclick="saveDraftUpdateScore()">Lưu nháp</button>
+                <button type="button" class="btn btn-warning" onclick="deleteAll('form_update_score')">Xóa tất cả</button>
+                <button type="button" class="btn btn-danger" onclick="cancelAll()">Hủy</button>
+            </div>
+
+            <div id="responseMessage" class="mt-3"></div>
+        </div>
+    </form>
+</div>
+{% endblock %}

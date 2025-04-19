@@ -21,6 +21,9 @@ cloudinary.config(
     api_secret = '4ouN8Z8Hjj1ahlD7lH8sU21MWwA'
 )
 
+max_score_count_45 = 3
+max_score_count_15 = 5
+
 
 
 

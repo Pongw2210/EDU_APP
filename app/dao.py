@@ -1,6 +1,7 @@
 import hashlib
-from models import User, Regulation, GradeEnum, Teacher, Student, Class, Teacher_Class, Student_Class
+from models import User, Regulation, GradeEnum, Teacher, Student, Class, Teacher_Class, Student_Class, Semester
 from app import app
+
 def get_user_by_id(user_id):
     return User.query.get(user_id)
 
@@ -43,14 +44,26 @@ def load_students_with_assign_status():
         s.assigned = len(s.classes) > 0
     return students
 
-def load_class(class_id = None):
+def load_class(class_id = None, grade = None):
     q = Class.query.all()
 
     if class_id:
         q = Class.query.get(class_id)
+
+    if grade:
+        q = Class.query.filter_by(grade=grade).all()
 
     return q
 
 def load_unassigned_students():
     # Trả về danh sách các học sinh chưa thuộc bất kỳ lớp nào
     return Student.query.filter(~Student.classes.any()).all()
+
+def load_semester(year_id=None):
+    q = Semester.query
+
+    if year_id:
+        q = Semester.query.filter_by(school_year_id=year_id)
+        print(q.all())
+
+    return q.all()
