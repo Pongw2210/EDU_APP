@@ -536,6 +536,11 @@ function saveEClass() {
 }
 
 //-----------------END XỬ LÝ FORM ĐIỀU CHỈNH LỚP HỌC---------------------------------------------------
+
+
+
+
+//-----------------XỬ LÝ FORM NHẬP ĐIỂM---------------------------------------------------
 function onGradeChange() {
     const grade = document.getElementById("grade").value;
     const classSelect = document.getElementById("class_select");
@@ -774,4 +779,200 @@ function saveUpdateScore() {
     });
 }
 
+//-----------------END XỬ LÝ FORM NHẬP ĐIỂM--------------------------------------------------
 
+
+
+//-----------------XỬ LÝ FORM XUẤT ĐIỂM--------------------------------------------------
+function onClassExportScoreChange() {
+    const classId = document.getElementById("class_select").value;
+    const school_year_id = document.getElementById("schoolyears").value;
+    if (!classId||!school_year_id) return;
+
+    const tbody = document.getElementById("available_student_table");
+    tbody.innerHTML = "";
+
+    fetch(`/api/get_score_by_class_id/${classId}/${school_year_id}`)
+        .then(res => res.json())
+        .then(data => {
+            tbody.innerHTML = ""; // Xóa thông báo tải
+
+            if (data.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='5'>Không có dữ liệu</td></tr>";
+                return;
+            }
+
+            data.forEach((student, index) => {
+                const row = document.createElement("tr");
+                row.setAttribute("available_student_id", student.id);
+
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${student.fullname}</td>
+                    <td>${student.avg_semester1 !== null ? student.avg_semester1 : "-"}</td>
+                    <td>${student.avg_semester2 !== null ? student.avg_semester2 : "-"}</td>
+                    <td>${student.avg_total !== null ? student.avg_total : "-"}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error("Lỗi khi tải điểm học sinh:", error);
+            tbody.innerHTML = "<tr><td colspan='5'>Lỗi khi tải dữ liệu</td></tr>";
+        });
+}
+
+function exportScore() {
+    const form = document.getElementById("form_export_score");
+    const formData = new FormData(form);
+
+    fetch("/api/export_score", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Lỗi khi xuất bảng điểm');
+        }
+        return response.blob();  // Nhận file Excel từ server
+    })
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'bang_diem.xlsx';  // Tên file tải về
+        a.click();
+        window.URL.revokeObjectURL(url);  // Giải phóng tài nguyên
+    })
+    .catch(error => {
+        console.error("Lỗi khi xuất bảng điểm:", error);
+        alert("Đã có lỗi xảy ra khi xuất bảng điểm. Vui lòng thử lại!");
+    });
+}
+
+//-----------------END XỬ LÝ FORM XUẤT ĐIỂM--------------------------------------------------
+
+
+//-----------------XỬ LÝ THỐNG KÊ--------------------------------------------------
+function onYearChange() {
+    const year = document.getElementById("year_school_id").value;
+    const semesterSelect = document.getElementById("semester_id");
+    if (!year || !semesterSelect) return;
+
+    fetch(`/api/get_semesters_by_year/${year}`)
+        .then(res => res.json())
+        .then(data => {
+            semesterSelect.innerHTML = '<option value="">-- Chọn học kỳ --</option>';
+            data.forEach(sem => {
+                const option = document.createElement('option');
+                option.value = sem.id;
+                option.textContent = sem.name;
+                semesterSelect.appendChild(option);
+            });
+        })
+        .catch(err => {
+            console.error('Lỗi khi tải học kỳ:', err);
+            semesterSelect.innerHTML = '<option value="">Không thể tải danh sách học kỳ</option>';
+        });
+}
+
+// Thêm sự kiện cho nút "Xuất thống kê"
+document.getElementById("exportStatsButton").addEventListener("click", function() {
+    const subjectId = document.getElementById("subject_id").value;
+    const yearSchoolId = document.getElementById("year_school_id").value;
+    const semesterId = document.getElementById("semester_id").value;
+
+    // Kiểm tra nếu người dùng chưa chọn đầy đủ thông tin
+    if (!subjectId || !yearSchoolId || !semesterId) {
+        alert("Vui lòng chọn đầy đủ thông tin.");
+        return;
+    }
+
+    // Gửi yêu cầu AJAX tới server
+    fetch('/admin/stats', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            subject_id: subjectId,
+            year_school_id: yearSchoolId,
+            semester_id: semesterId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.stats && data.stats.length > 0) {
+            // Hiển thị bảng kết quả thống kê
+            const statsTableBody = document.getElementById("statsTableBody");
+            statsTableBody.innerHTML = ''; // Xóa dữ liệu cũ
+            data.stats.forEach((stat, index) => {
+                const row = `<tr>
+                    <td>${index + 1}</td>
+                    <td>${stat.class_name}</td>
+                    <td>${stat.total_students}</td>
+                    <td>${stat.passed_students}</td>
+                    <td>${stat.pass_rate}</td>
+                </tr>`;
+                statsTableBody.innerHTML += row;
+            });
+
+            // Hiển thị biểu đồ
+            const labels = data.stats.map(stat => stat.class_name);
+            const passRates = data.stats.map(stat => stat.pass_rate);
+
+            const chartData = {
+                labels: labels,
+                datasets: [{
+                    label: 'Tỷ lệ đạt (%)',
+                    data: passRates,
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            };
+
+            const chartConfig = {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: { display: true, text: 'Tỷ lệ đạt (%)' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Lớp' }
+                        }
+                    }
+                }
+            };
+
+            new Chart(document.getElementById('myChart'), chartConfig);
+
+            // Hiển thị kết quả thống kê
+            document.getElementById("statsResults").style.display = "block";
+        } else {
+            alert("Không có dữ liệu thống kê cho lựa chọn của bạn.");
+        }
+    })
+    .catch(error => {
+        console.error('Lỗi khi tải thống kê:', error);
+        alert("Đã xảy ra lỗi, vui lòng thử lại sau.");
+    });
+});
+
+//-----------------END XỬ LÝ THỐNG KÊ--------------------------------------------------

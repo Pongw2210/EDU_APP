@@ -1,0 +1,136 @@
+{% extends 'admin/master.html' %}
+
+{% block body %}
+<div class="container mt-3">
+    <h2 class="text-primary">📊 Thống kê môn học</h2>
+
+    <form method="POST" action="">
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label>Môn học:</label>
+                <select class="form-control" name="subject_id" required>
+                    <option value="">-- Chọn môn học --</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}">{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label>Năm học:</label>
+                <select class="form-control" name="year_school_id" id="year_school_id" onchange="onYearChange()">
+                    <option value="">-- Chọn năm học --</option>
+                    {% for y in school_years %}
+                    <option value="{{ y.id }}">{{ y.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <label>Học kỳ:</label>
+                <select class="form-control" name="semester_id" id="semester_id" required>
+                    <option value="">-- Chọn học kỳ --</option>
+
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-chart-bar"></i> Xem thống kê
+        </button>
+    </form>
+
+    {% if stats_error_message %}
+    <div class="alert alert-danger mt-3">{{ stats_error_message }}</div>
+    {% endif %}
+
+    {% if stats %}
+    <hr>
+    <h4 class="text-success mt-4">Kết quả thống kê</h4>
+    <div>
+        <label>Năm học : {{school_year_name}}</label>
+    </div>
+
+    <div>
+        <label>Học kỳ : {{semester_name}}</label>
+    </div>
+
+    <div>
+        <label>Môn học : {{subject_name}}</label>
+    </div>
+
+
+    <table class="table table-bordered mt-3">
+        <thead>
+            <tr>
+                <th>STT</th>
+                <th>Lớp</th>
+                <th>Sĩ số</th>
+                <th>Số lượng đạt</th>
+                <th>Tỷ lệ đạt (%)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in stats %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ s.class_name }}</td>
+                <td>{{ s.total_students }}</td>
+                <td>{{ s.passed_students }}</td>
+                <td>{{ s.pass_rate }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Canvas biểu đồ -->
+    <canvas id="myChart" width="400" height="200"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const labels = {{ stats | map(attribute='class_name') | list | tojson }};
+        const data = {
+            labels: labels,
+            datasets: [{
+                label: 'Tỷ lệ đạt (%)',
+                data: {{ stats | map(attribute='pass_rate') | list | tojson }},
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        };
+
+        const config = {
+            type: 'bar',
+            data: data,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y + '%';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: { display: true, text: 'Tỷ lệ đạt (%)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Lớp' }
+                    }
+                }
+            }
+        };
+
+        new Chart(document.getElementById('myChart'), config);
+    </script>
+    {% else %}
+    <p>Không có dữ liệu thống kê cho lựa chọn của bạn.</p>
+    {% endif %}
+</div>
+<script src="{{url_for('static', filename='js/script.js')}}"></script>
+{% endblock %}

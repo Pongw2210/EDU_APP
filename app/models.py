@@ -10,6 +10,7 @@ class Base(db.Model):
     __abstract__ = True
     id = Column(Integer, primary_key=True, autoincrement=True)
 
+
 class UserEnum(RoleEnum):
     GIAOVIEN = "Giáo viên"
     GIAOVU = "Giáo vụ"
@@ -69,6 +70,7 @@ class Subject_Teacher_Class(db.Model):
     start_date = Column(DateTime, default=datetime.now())
     end_date = Column(DateTime, nullable=True)
 
+
 class Score(Base):
     __tablename__ = "score"
     student_id = Column(Integer, ForeignKey('student.id'))
@@ -89,6 +91,10 @@ class Teacher(Base):
     gender=Column(String(10),nullable=False)
     user_id = Column(Integer, ForeignKey('user.id'), nullable=True)
     classes = relationship(Teacher_Class, backref="teacher", lazy=True)
+    subject_teacher_classes = db.relationship('Subject_Teacher_Class', backref='teacher', lazy=True)
+
+    def __str__(self):
+        return self.fullname
 
 class Staff(Base):
     __tablename__="staff"
@@ -127,7 +133,7 @@ class Student(Base):
     phone=Column(String(10),nullable=False)
     email=Column(String(100),nullable=True)
     classes = relationship(Student_Class, backref="student", lazy=True)
-    # scores = relationship(Score,backref="student",lazy=True)
+    scores = relationship(Score,backref="student",lazy=True)
 
 class Class(Base):
     __tablename__="class"
@@ -137,12 +143,19 @@ class Class(Base):
     grade=Column(Enum(GradeEnum))
     students = relationship(Student_Class, backref="class", lazy=True)
     teachers = relationship(Teacher_Class, backref="class", lazy=True)
+    subject_teacher_classes = db.relationship('Subject_Teacher_Class', backref='class_', lazy=True)
+
+    def __str__(self):
+        return self.name
 
 class Subject(Base):
     __tablename__ = "subject"
     __table_args__ = {'extend_existing': True}
     name = Column(String(50), unique=True, nullable=False)
-    subject_teachers = relationship(Subject_Teacher_Class, backref="subject", lazy=True)
+    subject_teacher_classes = db.relationship('Subject_Teacher_Class', backref='subject', lazy=True)
+
+    def __str__(self):
+        return self.name
 
 class Semester(Base):
     __tablename__ = "semester"
@@ -278,14 +291,14 @@ if __name__ =="__main__":
             {"teacher": "Nguyễn Ngọc Anh", "subject": "Sinh Học", "class": "10A1"},
 
             # Lớp 11A1
-            {"teacher": "Tần Minh Ngọc", "subject": "Toán", "class": "11A1"},
+            {"teacher": "Nguyễn Ngọc Anh", "subject": "Toán", "class": "11A1"},
             {"teacher": "Phạm Ái Linh", "subject": "Ngữ Văn", "class": "11A1"},
             {"teacher": "Lê Bảo An", "subject": "Vật Lý", "class": "11A1"},
             {"teacher": "Nguyễn Ngọc Anh", "subject": "Hóa Học", "class": "11A1"},
             {"teacher": "Tần Minh Thư", "subject": "Sinh Học", "class": "11A1"},
 
             # Lớp 12A1
-            {"teacher": "Tần Minh Ngọc", "subject": "Toán", "class": "12A1"},
+            {"teacher": "Nguyễn Ngọc Anh", "subject": "Toán", "class": "12A1"},
             {"teacher": "Nguyễn Ngọc Anh", "subject": "Ngữ Văn", "class": "12A1"},
             {"teacher": "Lê Bảo An", "subject": "Vật Lý", "class": "12A1"},
             {"teacher": "Đỗ Quang Khải", "subject": "Hóa Học", "class": "12A1"},

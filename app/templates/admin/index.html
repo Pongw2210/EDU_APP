@@ -1,9 +1,15 @@
 {% extends 'admin/base.html' %}
 
 {% block body %}
-  {% if current_user.is_authenticated %}
-    <h1>Xin chào {{ current_user.admin.fullname }}</h1>
-  {% else %}
-    <h1>Xin chào khách</h1>
-  {% endif %}
+<div class="container mt-5">
+  <div class="card shadow-lg rounded-4 p-4 bg-light text-center">
+    {% if current_user.is_authenticated %}
+      <h1 class="text-primary fw-bold">👋 Xin chào, {{ current_user.admin.fullname }}!</h1>
+      <p class="lead text-muted mt-2">Chúc bạn một ngày làm việc hiệu quả ✨</p>
+    {% else %}
+      <h1 class="text-danger fw-bold">Xin chào khách!</h1>
+      <p class="lead text-muted mt-2">Vui lòng đăng nhập để tiếp tục sử dụng hệ thống.</p>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

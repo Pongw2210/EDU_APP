@@ -1,5 +1,6 @@
 import hashlib
-from models import User, Regulation, GradeEnum, Teacher, Student, Class, Teacher_Class, Student_Class, Semester
+from models import User, Regulation, GradeEnum, Teacher, Student, Class, Teacher_Class, Student_Class, Semester, \
+    School_Year, Subject
 from app import app
 
 def get_user_by_id(user_id):
@@ -67,3 +68,9 @@ def load_semester(year_id=None):
         print(q.all())
 
     return q.all()
+
+def load_school_year():
+    return School_Year.query.all()
+
+def load_subject():
+    return Subject.query.all()

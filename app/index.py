@@ -1,4 +1,6 @@
-from flask import render_template, redirect, request, flash, url_for, session
+from flask import render_template, redirect, request, flash, url_for, session, send_file
+from sqlalchemy import func
+
 from app import app, login, db, dao, socketio, max_score_count_15, max_score_count_45
 from flask_login import current_user, login_user, logout_user, login_required
 import cloudinary
@@ -7,7 +9,7 @@ import dao
 from datetime import datetime
 
 from models import UserEnum, Class, Teacher_Class, Student_Class, GradeEnum, Teacher, Subject_Teacher_Class, Subject, \
-    Score, ScoreTypeEnum
+    Score, ScoreTypeEnum, School_Year
 
 from io import BytesIO
 from openpyxl import Workbook
@@ -233,37 +235,48 @@ def add_class():
 
 @app.route('/api/save_class', methods=['POST'])
 def save_class():
-    data = request.get_json()
-    classname = data.get("classname")
-    grade = data.get("grade")
-    teacher_id = data.get("teacher_id")
-    student_ids = data.get("student_ids")
+    try:
+        data = request.get_json()
 
-    # Kiểm tra xem lớp học đã tồn tại chưa
-    existing_class = Class.query.filter_by(name=classname).first()
-    if existing_class:
-        return jsonify({'success': False, 'message': 'Lớp học đã tồn tại'})
+        if not data:
+            return jsonify({'success': False, 'message': 'Không nhận được dữ liệu JSON'}), 400
 
-    # Tạo lớp học mới
-    new_class = Class(name=classname, grade=grade, number_of_students=len(student_ids))
-    db.session.add(new_class)
-    db.session.commit()
+        classname = data.get("classname")
+        grade = data.get("grade")
+        teacher_id = data.get("teacher_id")
+        student_ids = data.get("student_ids")
 
-    # Liên kết giáo viên chủ nhiệm với lớp
-    teacher_class = Teacher_Class(teacher_id=teacher_id, class_id=new_class.id, time=datetime.now())
-    db.session.add(teacher_class)
-    db.session.commit()
+        if not classname or not grade or not teacher_id:
+            return jsonify({'success': False, 'message': 'Thiếu thông tin lớp học'}), 400
 
-    # Liên kết học sinh với lớp
-    for student_id in student_ids:
-        student = Student.query.get(student_id)
-        if student and not student.classes:  # chỉ thêm nếu chưa có lớp nào
-            student_class = Student_Class(student_id=student_id, class_id=new_class.id, date_of_join=datetime.now())
-            db.session.add(student_class)
+        # Kiểm tra lớp đã tồn tại chưa
+        existing_class = Class.query.filter_by(name=classname).first()
+        if existing_class:
+            return jsonify({'success': False, 'message': 'Lớp học đã tồn tại'})
 
-    db.session.commit()
+        # Tạo lớp
+        new_class = Class(name=classname, grade=grade, number_of_students=len(student_ids))
+        db.session.add(new_class)
+        db.session.commit()
 
-    return jsonify({'success': True, 'message': 'Lớp học đã được tạo thành công.'})
+        # Gán giáo viên
+        teacher_class = Teacher_Class(teacher_id=teacher_id, class_id=new_class.id, date_of_join=datetime.now())
+        db.session.add(teacher_class)
+
+        # Gán học sinh
+        for student_id in student_ids:
+            student = Student.query.get(student_id)
+            if student and not student.classes:  # chỉ thêm nếu chưa có lớp
+                student_class = Student_Class(student_id=student_id, class_id=new_class.id, date_of_join=datetime.now())
+                db.session.add(student_class)
+
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Lớp học đã được tạo thành công.'})
+
+    except Exception as e:
+        print("Lỗi khi lưu lớp học:", str(e))  # In ra log server
+        return jsonify({'success': False, 'message': f'Lỗi server: {str(e)}'}), 500
 
 @app.route('/edit_class')
 def edit_class():
@@ -450,6 +463,119 @@ def save_update_score():
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Lỗi khi cập nhật: {str(ex)}'})
 
+def calculate_avg_semester(student_id, semester_id):
+    avg_15 = db.session.query(func.avg(Score.score)).filter_by(
+        student_id=student_id,
+        semester_id=semester_id,
+        score_type=ScoreTypeEnum.DIEM_15
+    ).scalar()
+    print(f"Điểm 15' học sinh {student_id} học kỳ {semester_id}: {avg_15}")
+
+    avg_45 = db.session.query(func.avg(Score.score)).filter_by(
+        student_id=student_id,
+        semester_id=semester_id,
+        score_type=ScoreTypeEnum.DIEM_45
+    ).scalar()
+    print(f"Điểm 45' học sinh {student_id} học kỳ {semester_id}: {avg_45}")
+
+    exam_score = db.session.query(Score.score).filter_by(
+        student_id=student_id,
+        semester_id=semester_id,
+        score_type=ScoreTypeEnum.DIEM_THI
+    ).scalar()
+    print(f"Điểm thi học sinh {student_id} học kỳ {semester_id}: {exam_score}")
+
+    if avg_15 is not None and avg_45 is not None and exam_score is not None:
+        final_avg = round((avg_15 + avg_45 * 2 + exam_score * 3) / 6, 2)
+    else:
+        final_avg = None
+
+    return final_avg
+
+
+@app.route('/api/get_score_by_class_id/<int:class_id>/<int:school_year_id>', methods=['GET'])
+def get_score_by_class_id(class_id,school_year_id):
+    cls = Class.query.get(class_id)
+    school_year=School_Year.query.get(school_year_id)
+    if not cls or not school_year:
+        return jsonify({'error': 'Không tim thấy lớp hoặc năm học'})
+
+    for s in school_year.semesters:
+        print(s.id, s.name)
+    semesters=school_year.semesters
+    semester1 = next((s for s in semesters if s.name.startswith("HK1")), None)
+    semester2 = next((s for s in semesters if s.name.startswith("HK2")), None)
+    result = []
+
+    for sc in cls.students:
+        student = sc.student
+
+        avg_hk1 = calculate_avg_semester(student.id, semester1.id) if semester1 else None
+        avg_hk2 = calculate_avg_semester(student.id, semester2.id) if semester2 else None
+
+        avg_total = round(((avg_hk1 or 0) + (avg_hk2 or 0)) / 2, 2) if avg_hk1 and avg_hk2 else None
+
+        result.append({
+            'id': student.id,
+            'fullname': student.fullname,
+            'class': cls.name,
+            'avg_semester1': avg_hk1,
+            'avg_semester2': avg_hk2,
+            'avg_total': avg_total
+        })
+    print("====== TỔNG KẾT ======")
+    for item in result:
+        print(item)
+
+    return jsonify(result)
+
+@app.route('/api/export_score', methods=['POST'])
+def export_score():
+    school_year_id = request.form.get('schoolyears')
+    class_id = request.form.get('class_id')
+
+    cls = Class.query.get(class_id)
+    school_year = School_Year.query.get(school_year_id)
+
+    if not cls or not school_year:
+        return jsonify({'error': 'Không tìm thấy lớp hoặc năm học'}), 404
+
+    # Khởi tạo workbook và worksheet
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Bảng Điểm"
+
+    # Thêm tiêu đề cho các cột
+    ws.append(["STT", "Họ và tên", "Điểm trung bình HK1", "Điểm trung bình HK2", "Điểm tổng kết"])
+
+    # Lặp qua học sinh trong lớp để lấy điểm
+    for index, sc in enumerate(cls.students, start=1):
+        student = sc.student
+        avg_hk1 = calculate_avg_semester(student.id, 1)
+        avg_hk2 = calculate_avg_semester(student.id, 2)
+        avg_total = round(((avg_hk1 or 0) + (avg_hk2 or 0)) / 2, 2) if avg_hk1 and avg_hk2 else None
+
+        # Thêm thông tin học sinh vào sheet
+        ws.append([
+            index,
+            student.fullname,
+            avg_hk1 if avg_hk1 is not None else "-",
+            avg_hk2 if avg_hk2 is not None else "-",
+            avg_total if avg_total is not None else "-"
+        ])
+
+    # Lưu workbook vào bộ nhớ và gửi file cho người dùng
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(output, as_attachment=True, download_name="bang_diem.xlsx", mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+@app.route('/export_score')
+def export_score_form():
+    schoolyears = dao.load_school_year()
+    grades=dao.load_gradeEnum()
+    return render_template("export_score.html",schoolyears=schoolyears,grades=grades)
 
 if __name__ == '__main__':
     from app.admin import *
