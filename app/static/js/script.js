@@ -57,6 +57,8 @@ window.addEventListener('DOMContentLoaded', function () {
 
 
 
+
+
 //-----------------XỬ LÝ FORM CHUNG---------------------------------------------
 function cancelAll(){
     if(confirm("Bạn có chắc chắn hủy phiên làm việc không!")==true){
@@ -70,7 +72,21 @@ function deleteAll(id_form){
     }
 }
 
+function toggleSelectAll(selectAllCheckbox, checkboxName) {
+    const checkboxes = document.querySelectorAll(`input[name="${checkboxName}"]`);
+    const isChecked = selectAllCheckbox.checked;
+
+    checkboxes.forEach(function(checkbox) {
+        // Không check nếu checkbox bị disable hoặc nằm trong div (đã phân lớp)
+        const isWrappedInDiv = checkbox.closest('td')?.querySelector('div') !== null;
+        if (!checkbox.disabled && !isWrappedInDiv) {
+            checkbox.checked = isChecked;
+        }
+    });
+}
 //-----------------END XỬ LÝ FORM CHUNG---------------------------------------------
+
+
 
 
 
@@ -85,9 +101,10 @@ function saveDraftStudent() {
 
     alert('Thông tin đã được lưu nháp!');
 }
+
 // Chỉ chạy khi DOM đã sẵn sàng
 window.addEventListener('DOMContentLoaded', function () {
-    console.log("Đang khôi phục dữ liệu lưu nháp...");
+//    console.log("Đang khôi phục dữ liệu lưu nháp...");
 
     const fullname = document.getElementById('fullname');
     const dob = document.getElementById('dob');
@@ -169,6 +186,9 @@ function saveStudent() {
 //-----------------END XỬ LÝ FORM TIẾP NHẬN HỌC SINH---------------------------------------------
 
 
+
+
+
 //-----------------XỬ LÝ FORM LẬP DANH SÁCH LỚP---------------------------------------------
 // Xử lý thanh tìm kiếm giáo viên
 $(document).ready(function() {
@@ -178,23 +198,6 @@ $(document).ready(function() {
         width: 'resolve' // hoặc '100%' nếu bạn muốn luôn full width
     });
 });
-
-// Chọn tất cả học sinh
-function toggleSelectAll(selectAllCheckbox) {
-    // Lấy tất cả các checkbox học sinh
-    const studentCheckboxes = document.querySelectorAll('input[name="student_ids"]');
-
-    // Kiểm tra nếu checkbox "Chọn tất cả" đã được tick hay chưa
-    const isChecked = selectAllCheckbox.checked;
-
-    // Lặp qua tất cả các checkbox học sinh và thay đổi trạng thái
-    studentCheckboxes.forEach(function(checkbox) {
-        // Nếu học sinh đã được phân lớp (đã disabled), không thay đổi trạng thái
-        if (checkbox.closest('td').querySelector('div') === null) {
-            checkbox.checked = isChecked;
-        }
-    });
-}
 
 //Xử lý phân trang
 $(document).ready(function() {
@@ -324,17 +327,9 @@ function saveClass() {
 
 
 
-//-----------------XỬ LÝ FORM ĐIỀU CHỈNH LỚP HỌC---------------------------------------------------
-function toggleSelectAll(selectAllCheckbox, checkboxName) {
-    const studentCheckboxes = document.querySelectorAll(`input[name="${checkboxName}"]`);
-    const isChecked = selectAllCheckbox.checked;
 
-    studentCheckboxes.forEach(function(checkbox) {
-        if (!checkbox.disabled) {
-            checkbox.checked = isChecked;
-        }
-    });
-}
+
+//-----------------XỬ LÝ FORM ĐIỀU CHỈNH LỚP HỌC---------------------------------------------------
 
 //Khi nhấn chọn lớp
 function onClassChange() {
@@ -434,6 +429,7 @@ function removeStudentFromClass(studentId) {
     }
 }
 
+//Cập nhật lại index
 function updateTableIndex(tableBody, sttColumnIndex) {
     const rows = tableBody.querySelectorAll("tr");
     rows.forEach((row, index) => {
@@ -497,5 +493,46 @@ function restoreEDraftClass() {
 document.addEventListener("DOMContentLoaded", function () {
     restoreEDraftClass();
 });
+
+function saveEClass() {
+    const class_id = document.getElementById('class_select').value;
+    const teacher_id = document.getElementById('teacher').value;
+
+    //Lấy danh sách học sinh đang có trong lớp
+    const assigned_rows = document.querySelectorAll('#available_student_table tr[available_student_id]');
+    const assigned_student_ids = Array.from(assigned_rows).map(row => row.getAttribute('available_student_id'));
+
+    //Lấy học sinh mới được chọn (checkbox) từ danh sách chưa có lớp
+    const unassigned_student_ids = Array.from(document.querySelectorAll('input[name="unassigned_student_id"]:checked'))
+        .map(input => input.value);
+
+    //Gộp lại (tránh trùng lặp bằng Set)
+    const all_student_ids = [...new Set([...assigned_student_ids, ...unassigned_student_ids])];
+
+    if (class_id === '') {
+       document.getElementById('responseMessage').innerHTML = '<p style="color: red;">Thiếu thông tin lớp học!</p>';
+       return;
+    }
+
+    //Gửi dữ liệu lên server
+    fetch('/api/save_edit_class', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            class_id,
+            teacher_id,
+            student_ids: all_student_ids
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('responseMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+    })
+    .catch(err => {
+        document.getElementById('responseMessage').innerHTML = '<p style="color: red;">Lỗi: ' + error.message + '</p>';
+    });
+}
 
 //-----------------END XỬ LÝ FORM ĐIỀU CHỈNH LỚP HỌC---------------------------------------------------

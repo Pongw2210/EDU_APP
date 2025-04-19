@@ -276,6 +276,7 @@ def edit_class():
     unassigned_students=dao.load_unassigned_students()
     return render_template("edit_class.html",classes=classes,teachers=teachers,
                            unassigned_students=unassigned_students)
+
 @app.route('/api/class_info/<int:class_id>')
 def get_class_info(class_id):
     cls = dao.load_class(class_id)
@@ -300,6 +301,37 @@ def get_class_info(class_id):
         'students': student_data
     })
 
+@app.route('/api/save_edit_class', methods=['POST'])
+def save_edit_class():
+    data = request.get_json()
+    class_id = data.get("class_id")
+    teacher_id = data.get("teacher_id")
+    student_ids = data.get("student_ids", [])
+
+    try:
+        # --- Cập nhật giáo viên chủ nhiệm ---
+        if teacher_id:
+            # Xóa giáo viên cũ (nếu có)
+            Teacher_Class.query.filter_by(class_id=class_id).delete()
+            # Gán giáo viên mới
+            new_tc = Teacher_Class(teacher_id=teacher_id, class_id=class_id)
+            db.session.add(new_tc)
+
+        # --- Cập nhật học sinh ---
+        # Xóa toàn bộ học sinh cũ trong lớp
+        Student_Class.query.filter_by(class_id=class_id).delete()
+
+        # Thêm mới danh sách học sinh (nếu có)
+        for sid in student_ids:
+            sc = Student_Class(student_id=sid, class_id=class_id)
+            db.session.add(sc)
+
+        db.session.commit()
+        return jsonify({'message': 'Cập nhật lớp học thành công!'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Lỗi khi cập nhật: {str(e)}'})
 if __name__ == '__main__':
     from app.admin import *
 
