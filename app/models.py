@@ -10,7 +10,6 @@ class Base(db.Model):
     __abstract__ = True
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-
 class UserEnum(RoleEnum):
     GIAOVIEN = "Giáo viên"
     GIAOVU = "Giáo vụ"
@@ -60,16 +59,15 @@ class Teacher_Class(Base):
     class_id = Column(Integer, ForeignKey('class.id'),nullable=True)
     date_of_join = Column(DateTime, default=datetime.now())
 
-class Subject_Teacher_Class(db.Model):
+class Subject_Teacher_Class(Base):
     __tablename__="subject_teacher_class"
     __table_args__ = {'extend_existing': True}
-    teacher_id = Column(Integer, ForeignKey('teacher.id'), primary_key=True)
-    class_id = Column(Integer, ForeignKey('class.id'), primary_key=True)
-    subject_id=Column(Integer,ForeignKey('subject.id'),primary_key=True)
+    teacher_id = Column(Integer, ForeignKey('teacher.id'))
+    class_id = Column(Integer, ForeignKey('class.id'))
+    subject_id=Column(Integer,ForeignKey('subject.id'))
     active= Column(Enum(ActiveEnum), default=ActiveEnum.DANGDAY)
     start_date = Column(DateTime, default=datetime.now())
     end_date = Column(DateTime, nullable=True)
-
 
 class Score(Base):
     __tablename__ = "score"
@@ -244,7 +242,7 @@ if __name__ =="__main__":
         db.session.add_all([teacher2,teacher3,teacher4,teacher5,teacher6])
         db.session.commit()
 
-        class1 = Class(name="10A1", grade=GradeEnum.KHOI_10)
+        class1 = Class(name="10A1",number_of_students=1, grade=GradeEnum.KHOI_10)
         db.session.add(class1)
         class2 = Class(name="11A1", grade=GradeEnum.KHOI_11)
         db.session.add(class2)

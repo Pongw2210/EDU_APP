@@ -494,6 +494,17 @@ document.addEventListener("DOMContentLoaded", function () {
     restoreEDraftClass();
 });
 
+function clearEditDraft() {
+    const keys = [
+        "edit_draft_classId",
+        "edit_draft_teacher",
+        "edit_draft_current_students",
+        "edit_draft_checked_unassigned",
+        "edit_draft_removed_students"
+    ];
+    keys.forEach(key => localStorage.removeItem(key));
+}
+
 function saveEClass() {
     const class_id = document.getElementById('class_select').value;
     const teacher_id = document.getElementById('teacher').value;
@@ -528,8 +539,11 @@ function saveEClass() {
     })
     .then(res => res.json())
     .then(data => {
-        document.getElementById('responseMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
-    })
+    document.getElementById('responseMessage').innerHTML = '<p style="color: green;">' + data.message + '</p>';
+    setTimeout(() => {
+        location.reload();
+    }, 3000);
+})
     .catch(err => {
         document.getElementById('responseMessage').innerHTML = '<p style="color: red;">Lỗi: ' + error.message + '</p>';
     });
@@ -594,6 +608,7 @@ function validateScore(input) {
 
 let score15pCount = 1; // Số cột điểm 15 phút hiện tại
 let score45pCount = 1; // Số cột điểm 45 phút hiện tại
+
 function onClassScoreChange() {
     const classId = document.getElementById("class_select").value;
     if (!classId) return;
@@ -608,7 +623,6 @@ function onClassScoreChange() {
                 const row = document.createElement("tr");
                 row.setAttribute("available_student_id", student.id);
 
-                // Tạo các ô điểm 15 phút kèm label
                 let score15pInputs = "";
                 for (let i = 1; i <= score15pCount; i++) {
                     score15pInputs += `
@@ -620,8 +634,7 @@ function onClassScoreChange() {
                         </td>
                     `;
                 }
-                let score15pTd = `<td>${score15pInputs}</td>`;
-                // Tạo các ô điểm 15 phút kèm label
+
                 let score45pInputs = "";
                 for (let i = 1; i <= score45pCount; i++) {
                     score45pInputs += `
@@ -633,7 +646,7 @@ function onClassScoreChange() {
                         </td>
                     `;
                 }
-                let score45pTd = `<td>${score45pInputs}</td>`;
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${student.fullname}</td>
@@ -647,17 +660,31 @@ function onClassScoreChange() {
                 `;
                 tbody.appendChild(row);
             });
+
+            // Cập nhật colSpan của header
+            const score15pHeader = document.getElementById("score15p_header");
+            const score45pHeader = document.getElementById("score45p_header");
+            if (score15pHeader) score15pHeader.colSpan = score15pCount;
+            if (score45pHeader) score45pHeader.colSpan = score45pCount;
+        })
+        .catch(err => {
+            console.error('Lỗi khi tải danh sách học sinh:', err);
         });
 }
 
 function addScoreColumn(type, maxCount, labelPrefix) {
-    const countVar = type === "score15p" ? ++score15pCount : ++score45pCount;
-    if ((type === "score15p" && countVar > maxCount) || (type === "score45p" && countVar > maxCount)) {
+    let countVar = type === "score15p" ? score15pCount : score45pCount;
+
+    // Kiểm tra giới hạn trước khi tăng
+    if ((type === "score15p" && countVar >= maxCount) || (type === "score45p" && countVar >= maxCount)) {
         alert(`Chỉ được nhập tối đa ${maxCount} cột điểm ${labelPrefix}.`);
-        if (type === "score15p") score15pCount--;
-        else score45pCount--;
         return;
     }
+
+    // Tăng count sau khi kiểm tra
+    if (type === "score15p") score15pCount++;
+    else score45pCount++;
+    countVar = type === "score15p" ? score15pCount : score45pCount;
 
     const header = document.getElementById(`${type}_header`);
     if (header) header.colSpan = countVar;
@@ -667,6 +694,8 @@ function addScoreColumn(type, maxCount, labelPrefix) {
 
     for (let row of rows) {
         const studentId = row.getAttribute("available_student_id");
+        if (!studentId) continue;
+
         const td = document.createElement("td");
         td.innerHTML = `
             <label class="form-label me-1">Lần ${countVar}</label>
@@ -683,6 +712,8 @@ function addScoreColumn(type, maxCount, labelPrefix) {
         }
         row.insertBefore(td, row.children[insertIndex]);
     }
+
+    console.log(`${type} column added. Current count: ${countVar}`); // Debug
 }
 
 function removeScoreColumn(type, minCount = 1) {
@@ -705,6 +736,315 @@ function removeScoreColumn(type, minCount = 1) {
         const deleteIndex = (type === "score15p") ? score15pIndex : score45pIndex;
         row.deleteCell(deleteIndex);
     }
+}
+
+document.addEventListener("DOMContentLoaded", async function () {
+    if (typeof Storage === "undefined") {
+        alert('Trình duyệt không hỗ trợ localStorage.');
+        return;
+    }
+
+    const draftJSON = localStorage.getItem('scoreDraft');
+    if (!draftJSON) {
+        console.log('No draft found in localStorage');
+        return;
+    }
+
+    let draft;
+    try {
+        draft = JSON.parse(draftJSON);
+        console.log('Draft loaded:', draft);
+    } catch (error) {
+        console.error('Error parsing draft from localStorage:', error);
+        alert('Dữ liệu nháp không hợp lệ. Đã xóa nháp.');
+        localStorage.removeItem('scoreDraft');
+        return;
+    }
+
+    try {
+        const lastSavedTimeDisplay = document.getElementById('lastSavedTimeDisplay');
+        if (lastSavedTimeDisplay) {
+            if (draft.lastSavedTime) {
+                const lastSaved = new Date(draft.lastSavedTime);
+                lastSavedTimeDisplay.textContent = `Lần lưu nháp gần nhất: ${lastSaved.toLocaleString('vi-VN')}`;
+            } else {
+                lastSavedTimeDisplay.textContent = 'Chưa có lần lưu nháp nào.';
+            }
+        }
+
+        score15pCount = Math.min(draft.score15pCount || 1, 10);
+        score45pCount = Math.min(draft.score45pCount || 1, 10);
+        console.log('Restored counts:', { score15pCount, score45pCount });
+
+        if (!draft.grade || !draft.class_id || !draft.subject_id || !draft.semester_id) {
+            console.warn('Draft is missing required fields:', draft);
+            alert('Dữ liệu nháp không đầy đủ. Vui lòng chọn lại các trường.');
+            localStorage.removeItem('scoreDraft');
+            return;
+        }
+
+        document.getElementById('grade').value = draft.grade;
+        await new Promise((resolve, reject) => {
+            fetch(`/api/get_classes_by_grade/${draft.grade}`)
+                .then(res => {
+                    if (!res.ok) throw new Error(`API get_classes_by_grade failed with status ${res.status}`);
+                    return res.json();
+                })
+                .then(data => {
+                    const classSelect = document.getElementById("class_select");
+                    classSelect.innerHTML = '<option value="">-- Chọn lớp --</option>';
+                    data.forEach(cls => {
+                        const option = document.createElement('option');
+                        option.value = cls.id;
+                        option.textContent = cls.name;
+                        classSelect.appendChild(option);
+                    });
+                    resolve();
+                })
+                .catch(err => {
+                    console.error('Lỗi khi tải lớp:', err);
+                    document.getElementById("class_select").innerHTML = '<option value="">Không thể tải danh sách lớp</option>';
+                    reject(err);
+                });
+        });
+
+        document.getElementById('class_select').value = draft.class_id;
+        await new Promise((resolve, reject) => {
+            fetch(`/api/get_subject_by_teachID_classID/${draft.class_id}`)
+                .then(res => {
+                    if (!res.ok) throw new Error(`API get_subject_by_teachID_classID failed with status ${res.status}`);
+                    return res.json();
+                })
+                .then(data => {
+                    const subjectSelect = document.getElementById("subject_select");
+                    subjectSelect.innerHTML = '<option value="">-- Chọn môn học --</option>';
+                    data.forEach(subject => {
+                        const option = document.createElement('option');
+                        option.value = subject.id;
+                        option.textContent = subject.name;
+                        subjectSelect.appendChild(option);
+                    });
+                    resolve();
+                })
+                .catch(err => {
+                    console.error('Lỗi khi tải môn học:', err);
+                    document.getElementById("subject_select").innerHTML = '<option value="">Không thể tải danh sách môn học</option>';
+                    reject(err);
+                });
+        });
+
+        document.getElementById('subject_select').value = draft.subject_id;
+        document.getElementById('semester').value = draft.semester_id;
+
+        await new Promise((resolve, reject) => {
+            fetch(`/api/class_info/${draft.class_id}`)
+                .then(res => {
+                    if (!res.ok) throw new Error(`API class_info failed with status ${res.status}`);
+                    return res.json();
+                })
+                .then(data => {
+                    const tbody = document.getElementById("available_student_table");
+                    tbody.innerHTML = "";
+                    data.students.forEach((student, index) => {
+                        const row = document.createElement("tr");
+                        row.setAttribute("available_student_id", student.id);
+
+                        let score15pInputs = "";
+                        for (let i = 1; i <= score15pCount; i++) {
+                            score15pInputs += `
+                                <td>
+                                    <label class="form-label me-1">Lần ${i}</label>
+                                    <input type="number" class="form-control d-inline-block w-auto"
+                                           name="score15p_${i}_${student.id}" min="0" max="10" step="0.1"
+                                           oninput="validateScore(this)">
+                                </td>
+                            `;
+                        }
+                        let score45pInputs = "";
+                        for (let i = 1; i <= score45pCount; i++) {
+                            score45pInputs += `
+                                <td>
+                                    <label class="form-label me-1">Lần ${i}</label>
+                                    <input type="number" class="form-control d-inline-block w-auto"
+                                           name="score45p_${i}_${student.id}" min="0" max="10" step="0.1"
+                                           oninput="validateScore(this)">
+                                </td>
+                            `;
+                        }
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${student.fullname}</td>
+                            ${score15pInputs}
+                            ${score45pInputs}
+                            <td>
+                                <input type="number" class="form-control"
+                                       name="examScore_${student.id}" min="0" max="10" step="0.1"
+                                       oninput="validateScore(this)">
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+
+                    // Cập nhật colSpan của header
+                    const score15pHeader = document.getElementById("score15p_header");
+                    const score45pHeader = document.getElementById("score45p_header");
+                    if (score15pHeader) score15pHeader.colSpan = score15pCount;
+                    if (score45pHeader) score45pHeader.colSpan = score45pCount;
+
+                    resolve();
+                })
+                .catch(err => reject(err));
+        });
+
+        await waitForTableRender();
+
+        if (draft.scores && Array.isArray(draft.scores)) {
+            draft.scores.forEach((item) => {
+                const studentRow = document.querySelector(`tr[available_student_id="${item.student_id}"]`);
+                if (studentRow) {
+                    const score15Inputs = [];
+                    for (let i = 1; i <= score15pCount; i++) {
+                        const input = studentRow.querySelector(`input[name="score15p_${i}_${item.student_id}"]`);
+                        if (input) score15Inputs.push(input);
+                        else console.warn(`Input score15p_${i}_${item.student_id} not found`);
+                    }
+
+                    const score45Inputs = [];
+                    for (let i = 1; i <= score45pCount; i++) {
+                        const input = studentRow.querySelector(`input[name="score45p_${i}_${item.student_id}"]`);
+                        if (input) score45Inputs.push(input);
+                        else console.warn(`Input score45p_${i}_${item.student_id} not found`);
+                    }
+
+                    const examScoreInput = studentRow.querySelector(`input[name="examScore_${item.student_id}"]`);
+
+                    if (item.score15p && Array.isArray(item.score15p)) {
+                        item.score15p.forEach((val, i) => {
+                            if (score15Inputs[i]) {
+                                score15Inputs[i].value = val ?? '';
+                            } else {
+                                console.warn(`score15p input index ${i} not found for student ${item.student_id}`);
+                            }
+                        });
+                    }
+
+                    if (item.score45p && Array.isArray(item.score45p)) {
+                        item.score45p.forEach((val, i) => {
+                            if (score45Inputs[i]) {
+                                score45Inputs[i].value = val ?? '';
+                            } else {
+                                console.warn(`score45p input index ${i} not found for student ${item.student_id}`);
+                            }
+                        });
+                    }
+
+                    if (examScoreInput) {
+                        examScoreInput.value = item.exam_score ?? '';
+                    } else {
+                        console.warn(`examScore input not found for student ${item.student_id}`);
+                    }
+                } else {
+                    console.warn(`Student row with ID ${item.student_id} not found`);
+                }
+            });
+        } else {
+            console.warn('No scores found in draft');
+        }
+
+        console.log('Draft scores applied successfully');
+    } catch (error) {
+        console.error('Error loading draft:', error);
+//        alert('Có lỗi khi tải nháp. Vui lòng thử lại.');
+    }
+});
+
+function saveDraftUpdateScore() {
+    try {
+        const students = document.querySelectorAll('#studentTable_class tbody tr');
+        if (!students.length) {
+            console.warn('No students found in table');
+            alert('Không có học sinh nào để lưu nháp.');
+            return;
+        }
+
+        const draftData = [];
+        students.forEach((studentRow) => {
+            const studentId = studentRow.getAttribute('available_student_id');
+            if (!studentId) return;
+
+            // Thu thập điểm 15 phút từ tất cả các cột
+            const score15p = [];
+            for (let i = 1; i <= score15pCount; i++) {
+                const input = studentRow.querySelector(`input[name="score15p_${i}_${studentId}"]`);
+                score15p.push(input && input.value ? parseFloat(input.value) : null);
+            }
+
+            // Thu thập điểm 45 phút từ tất cả các cột
+            const score45p = [];
+            for (let i = 1; i <= score45pCount; i++) {
+                const input = studentRow.querySelector(`input[name="score45p_${i}_${studentId}"]`);
+                score45p.push(input && input.value ? parseFloat(input.value) : null);
+            }
+
+            // Thu thập điểm thi
+            const examScoreInput = studentRow.querySelector(`input[name="examScore_${studentId}"]`);
+            const examScore = examScoreInput && examScoreInput.value ? parseFloat(examScoreInput.value) : null;
+
+            draftData.push({
+                student_id: studentId,
+                score15p: score15p,
+                score45p: score45p,
+                exam_score: examScore
+            });
+
+            console.log(`Student ${studentId} - score15p:`, score15p, `score45p:`, score45p); // Debug
+        });
+
+        const draft = {
+            semester_id: document.getElementById('semester').value || '',
+            subject_id: document.getElementById('subject_select').value || '',
+            class_id: document.getElementById('class_select').value || '',
+            grade: document.getElementById('grade').value || '',
+            score15pCount: score15pCount,
+            score45pCount: score45pCount,
+            scores: draftData,
+            lastSavedTime: new Date().toISOString()
+        };
+
+        if (!draft.semester_id || !draft.subject_id || !draft.class_id || !draft.grade) {
+            alert('Vui lòng chọn đầy đủ các trường (Khối, Lớp, Học kỳ, Môn học) trước khi lưu nháp.');
+            return;
+        }
+
+        localStorage.setItem('scoreDraft', JSON.stringify(draft));
+        console.log('Draft saved:', draft);
+
+        const lastSavedTimeDisplay = document.getElementById('lastSavedTimeDisplay');
+        if (lastSavedTimeDisplay) {
+            lastSavedTimeDisplay.textContent = `Lần lưu nháp gần nhất: ${new Date().toLocaleString('vi-VN')}`;
+        }
+
+        alert('Thông tin đã được lưu nháp!');
+    } catch (error) {
+        console.error('Error saving draft:', error);
+//        alert('Có lỗi khi lưu nháp. Vui lòng thử lại.');
+    }
+}
+
+function waitForTableRender() {
+    return new Promise((resolve) => {
+        const checkTable = () => {
+            const table = document.querySelector('#studentTable_class tbody');
+            if (table && table.querySelectorAll('tr').length > 0) {
+                console.log('Table rendered with students');
+                resolve();
+            } else {
+                console.log('Waiting for table to render...');
+                setTimeout(checkTable, 100);
+            }
+        };
+        checkTable();
+    });
 }
 
 function saveUpdateScore() {
@@ -767,7 +1107,7 @@ function saveUpdateScore() {
 
             setTimeout(() => {
                 location.reload();
-            }, 30000);
+            }, 3000);
         } else {
             document.getElementById('responseMessage').innerHTML =
                 `<p style="color: red;">${data.message}</p>`;
@@ -780,6 +1120,8 @@ function saveUpdateScore() {
 }
 
 //-----------------END XỬ LÝ FORM NHẬP ĐIỂM--------------------------------------------------
+
+
 
 
 
@@ -852,6 +1194,9 @@ function exportScore() {
 }
 
 //-----------------END XỬ LÝ FORM XUẤT ĐIỂM--------------------------------------------------
+
+
+
 
 
 //-----------------XỬ LÝ THỐNG KÊ--------------------------------------------------

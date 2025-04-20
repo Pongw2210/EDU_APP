@@ -335,6 +335,10 @@ def save_edit_class():
             sc = Student_Class(student_id=sid, class_id=class_id)
             db.session.add(sc)
 
+        cls = dao.load_class(class_id)
+        if cls:
+            cls.number_of_students = len(student_ids)
+
         db.session.commit()
         return jsonify({'message': 'Cập nhật lớp học thành công!'})
 
