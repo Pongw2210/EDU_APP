@@ -1,6 +1,8 @@
 from sqlalchemy import func, and_, case
 from app import db, app
 from models import Student, Score, Student_Class, Class
+from flask_mail import Message
+from app import mail
 
 
 def subject_summary_report(subject_id, semester_id):
@@ -56,6 +58,16 @@ def subject_summary_report(subject_id, semester_id):
 
     print(report)
     return report
+
+
+
+def send_student_email(recipient_email, student_name):
+    msg = Message(subject="Thông báo tiếp nhận học sinh",
+                  sender="your_email@gmail.com",
+                  recipients=[recipient_email])
+    msg.body = f"Chào {student_name},\n\nBạn đã được tiếp nhận vào hệ thống học sinh. Cảm ơn bạn!"
+    mail.send(msg)
+
 
 with app.app_context():
     subject_summary_report(1,1)

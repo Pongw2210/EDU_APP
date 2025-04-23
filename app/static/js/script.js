@@ -1,57 +1,63 @@
 //-----------------XỬ LÝ THAY ĐỔI AVATAR----------------------------------------
 let selectedAvatarFile = null; // biến tạm lưu ảnh
 
-window.addEventListener('DOMContentLoaded', function () {
+function chooseImage() {
     const avatarInput = document.getElementById("avatar");
     const avatarPreview = document.getElementById("avatarPreview");
     const saveAvatarBtn = document.getElementById("saveAvatarBtn");
 
-    // Xử lý chọn ảnh avatar
     if (avatarInput && avatarPreview) {
-        avatarInput.addEventListener("change", function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                selectedAvatarFile = file;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    avatarPreview.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    } else {
-//        console.warn("Không tìm thấy phần tử avatar hoặc avatarPreview trong DOM.");
+        handleAvatarSelection(avatarInput, avatarPreview);
     }
 
-    // Xử lý nút lưu ảnh
     if (saveAvatarBtn) {
-        saveAvatarBtn.addEventListener("click", function () {
-            if (!selectedAvatarFile) {
-                alert("Bạn chưa chọn ảnh nào!");
-                return;
-            }
-
-            const form = document.querySelector('form');
-            const formData = new FormData();
-            formData.append('avatar', selectedAvatarFile);
-
-            fetch(form.action, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (response.redirected) {
-                    window.location.href = response.url;
-                } else {
-                    alert("Cập nhật không thành công!");
-                }
-            })
-            .catch(error => console.error("Lỗi:", error));
-        });
-    } else {
-//        console.warn("Không tìm thấy nút lưu ảnh (saveAvatarBtn).");
+        handleAvatarSave(saveAvatarBtn);
     }
-});
+}
+
+// Hàm xử lý chọn ảnh avatar
+function handleAvatarSelection(inputElement, previewElement) {
+    inputElement.addEventListener("change", function (e) { // hàm lắng nghe sự kiện change
+        const file = e.target.files[0];  // danh sách hình ảnh lấy index đầu tiên
+        if (file) {
+            selectedAvatarFile = file;
+            const reader = new FileReader();    //tạo reader để đọc file
+            reader.onload = function (e) {
+                previewElement.src = e.target.result; // gán chuỗi file
+            };
+            reader.readAsDataURL(file); // đọc file chuyển thành chuỗi
+        }
+    });
+}
+
+// Hàm xử lý lưu ảnh avatar
+function handleAvatarSave(buttonElement) {
+    buttonElement.addEventListener("click", function () { // hàm lắng nghe sự kiện click
+        if (!selectedAvatarFile) {
+            alert("Bạn chưa chọn ảnh nào!");
+            return;
+        }
+
+        const form = document.querySelector('form');
+        const formData = new FormData();
+        formData.append('avatar', selectedAvatarFile); // thêm file đang chọn vào FormData
+
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => {
+            if (res.redirected) {
+                alert("Cập nhật ảnh đại diện thành công!");
+                window.location.href = res.url;
+            } else {
+                alert("Cập nhật không thành công!");
+            }
+        })
+        .catch(error => console.error("Lỗi:", error));
+    });
+}
+
 
 //-----------------END XỬ LÝ THAY ĐỔI AVATAR----------------------------------------
 
@@ -173,7 +179,9 @@ function saveStudent() {
     .then(data => {
         if (data.success) {
             document.getElementById('responseMessage').innerHTML = '<p style="color: green;">'+data.message+'</p>';
-            form.reset();  // Xóa form sau khi lưu
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
         } else {
             document.getElementById('responseMessage').innerHTML = '<p style="color: red;">' + data.message + '</p>';
         }
@@ -195,7 +203,7 @@ $(document).ready(function() {
     $('#teacher').select2({
         placeholder: "Tìm kiếm giáo viên...",
         allowClear: true,
-        width: 'resolve' // hoặc '100%' nếu bạn muốn luôn full width
+        width: '100%'
     });
 });
 
@@ -226,7 +234,7 @@ function saveDraftClass() {
     localStorage.setItem('draftgrade', document.getElementById("grade").value);
     localStorage.setItem('draftTeacher', document.getElementById("teacher").value);
 
-    // Lưu danh sách học sinh đã chọn
+    // Lưu danh sách học sinh đã chọn lưu dưới dạng JSON
     const selectedStudents = Array.from(document.querySelectorAll('input[name="student_ids"]:checked'))
                                 .map(cb => cb.value);
     localStorage.setItem('draftStudentIds', JSON.stringify(selectedStudents));
@@ -235,19 +243,21 @@ function saveDraftClass() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    const classname = document.getElementById('classname');
-    const grade = document.getElementById('grade');
-    const teacher = document.getElementById('teacher');
+    const classname = document.getElementById('classname'); // lấy ô lớp
+    const grade = document.getElementById('grade'); // lấy ô khối
+    const teacher = document.getElementById('teacher'); // lấy ô GVCN
 
     if (classname && grade && teacher) {
         classname.value = localStorage.getItem('draftClassname') || "";
         grade.value = localStorage.getItem('draftgrade') || "";
 
+    // lấy giáo viên đang được lưu nháp
         const savedTeacher = localStorage.getItem('draftTeacher');
-        if (savedTeacher) {
+        if (savedTeacher) { // nếu có
+            // duyệt qua tất cả options trong dropdown để tìm option có value
             for (let i = 0; i < teacher.options.length; i++) {
                 if (teacher.options[i].value === savedTeacher) {
-                    teacher.selectedIndex = i;
+                    teacher.selectedIndex = i; //đặt selectedIndex cho dropdown
                     break;
                 }
             }
@@ -258,8 +268,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Khôi phục danh sách học sinh đã chọn
+    // danh sách học sinh được lưu dưới dạng JSON (chuyển thành mảng) ở localStorage
     const savedStudentIds = JSON.parse(localStorage.getItem('draftStudentIds') || "[]");
     const checkboxes = document.querySelectorAll('input[name="student_ids"]');
+    //duyệt qua từng checkbox, checked nếu có giá trị trong checkboxes
     checkboxes.forEach(cb => {
         if (savedStudentIds.includes(cb.value)) {
             cb.checked = true;
@@ -288,7 +300,7 @@ function saveClass() {
         return;
     }
 
-    // Tiến hành gửi form nếu tất cả đều hợp lệ
+    // Tạo đối tượng dữ liệu để gửi dưới dạng JSON
     var formData = {
         classname: classname,
         grade: grade,
@@ -296,6 +308,7 @@ function saveClass() {
         student_ids: student_ids
     };
 
+    // Tiến hành gửi form nếu tất cả đều hợp lệ
     fetch('/api/save_class', {
         method: 'POST',
         headers: {
@@ -304,8 +317,6 @@ function saveClass() {
         body: JSON.stringify(formData)
     })
     .then(res => {
-//        // Kiểm tra xem phản hồi có phải là JSON không
-//        console.log(res);
         return res.json();  // Chuyển đổi phản hồi thành JSON
     })
     .then(data => {
@@ -383,11 +394,25 @@ function toggleAddStudent() {
     }
 }
 
+//Cập nhật lại index
+function updateTableIndex(tableBody, sttColumnIndex) {
+    const rows = tableBody.querySelectorAll("tr");
+    rows.forEach((row, index) => {
+        const cells = row.querySelectorAll("td");
+        if (cells.length > sttColumnIndex) {
+            cells[sttColumnIndex].innerText = index + 1;
+        }
+    });
+}
+
 //Khi onclick btn xóa
 function removeStudentFromClass(studentId) {
+
+    //Tìm hàng (tr) trong bảng available_student_table có thuộc tính available_student_id bằng studentId
     const row = document.querySelector(`#available_student_table tr[available_student_id='${studentId}']`);
     if (!row) return;
 
+    //Lấy tất cả các ô trong hàng
     const cells = row.querySelectorAll("td");
     const fullname = cells[1].innerText;
     const dob = cells[2].innerText;
@@ -396,6 +421,7 @@ function removeStudentFromClass(studentId) {
     const phone = cells[5].innerText;
     const email = cells[6].innerText;
 
+    //Tạo hàng mới cho bảng học sinh chưa có lớp unassigned_student_id
     const newRow = document.createElement("tr");
     newRow.innerHTML = `
         <td><input type="checkbox" name="unassigned_student_id" value="${studentId}"></td>
@@ -410,8 +436,8 @@ function removeStudentFromClass(studentId) {
 
     const container = document.getElementById("unassigned_students_container");
     const unassignedTableBody = container.querySelector("tbody");
-    container.style.display = "block";
-    unassignedTableBody.appendChild(newRow);
+    container.style.display = "block";      // cho hiện nếu ẩn khi thực hiện thao tác xóa học sinh
+    unassignedTableBody.appendChild(newRow);    // thêm hàng mới vào cuối bảng
 
     // Xoá khỏi danh sách lớp
     row.remove();
@@ -421,34 +447,18 @@ function removeStudentFromClass(studentId) {
     updateTableIndex(availableTableBody, 0);
     updateTableIndex(unassignedTableBody, 1);
 
-    // Lưu vào localStorage
-    let removed = JSON.parse(localStorage.getItem("draft_removed_students") || "[]");
-    if (!removed.includes(studentId)) {
-        removed.push(studentId);
-        localStorage.setItem("draft_removed_students", JSON.stringify(removed));
-    }
-}
-
-//Cập nhật lại index
-function updateTableIndex(tableBody, sttColumnIndex) {
-    const rows = tableBody.querySelectorAll("tr");
-    rows.forEach((row, index) => {
-        const cells = row.querySelectorAll("td");
-        if (cells.length > sttColumnIndex) {
-            cells[sttColumnIndex].innerText = index + 1;
-        }
-    });
 }
 
 function saveDraftEClass() {
-    const classId = document.getElementById("class_select").value;
-    const teacher = document.getElementById("teacher").value;
-    localStorage.setItem("edit_draft_classId", classId);
-    localStorage.setItem("edit_draft_teacher", teacher); // Lưu giáo viên chủ nhiệm
+    const classId = document.getElementById("class_select").value; //lấy giá trị ô classId
+    const teacher = document.getElementById("teacher").value;   //lấy giá trị teacher
+    localStorage.setItem("edit_draft_classId", classId);    //Lưu nháp classId
+    localStorage.setItem("edit_draft_teacher", teacher); // Lưu nháp giáo viên chủ nhiệm
 
     // Lưu học sinh hiện có trong lớp
+    // Chuyển NodeList (kết quả từ querySelectorAll) thành mảng JavaScript để có thể sử dụng các phương thức của mảng
     const currentStudents = Array.from(document.querySelectorAll('#available_student_table tr'))
-        .map(row => row.getAttribute("available_student_id"))
+        .map(row => row.getAttribute("available_student_id"))  //Lấy giá trị của thuộc tính available_student_id từ mỗi thẻ
         .filter(id => id !== null);
     localStorage.setItem("edit_draft_current_students", JSON.stringify(currentStudents));
 
@@ -493,17 +503,6 @@ function restoreEDraftClass() {
 document.addEventListener("DOMContentLoaded", function () {
     restoreEDraftClass();
 });
-
-function clearEditDraft() {
-    const keys = [
-        "edit_draft_classId",
-        "edit_draft_teacher",
-        "edit_draft_current_students",
-        "edit_draft_checked_unassigned",
-        "edit_draft_removed_students"
-    ];
-    keys.forEach(key => localStorage.removeItem(key));
-}
 
 function saveEClass() {
     const class_id = document.getElementById('class_select').value;
@@ -610,20 +609,20 @@ let score15pCount = 1; // Số cột điểm 15 phút hiện tại
 let score45pCount = 1; // Số cột điểm 45 phút hiện tại
 
 function onClassScoreChange() {
-    const classId = document.getElementById("class_select").value;
+    const classId = document.getElementById("class_select").value; //lấy giá trị class_id từ form
     if (!classId) return;
 
     fetch(`/api/class_info/${classId}`)
         .then(res => res.json())
         .then(data => {
-            const tbody = document.getElementById("available_student_table");
-            tbody.innerHTML = "";
+            const tbody = document.getElementById("available_student_table"); //lấy bảng available_student_table
+            tbody.innerHTML = "";       // xóa tất cả nội dung trước của bảng
 
-            data.students.forEach((student, index) => {
+            data.students.forEach((student, index) => { //với mỗi học sinh trong danh sách học sinh, xử lý:
                 const row = document.createElement("tr");
-                row.setAttribute("available_student_id", student.id);
+                row.setAttribute("available_student_id", student.id);   // tạo 1 dòng mới của bảng và gán thuộc tính
 
-                let score15pInputs = "";
+                let score15pInputs = "";    //tạo ô nhập 15p
                 for (let i = 1; i <= score15pCount; i++) {
                     score15pInputs += `
                         <td>
@@ -635,7 +634,7 @@ function onClassScoreChange() {
                     `;
                 }
 
-                let score45pInputs = "";
+                let score45pInputs = "";    // tạo ô nhập 45p
                 for (let i = 1; i <= score45pCount; i++) {
                     score45pInputs += `
                         <td>
@@ -647,6 +646,7 @@ function onClassScoreChange() {
                     `;
                 }
 
+                //Tạo dòng cho từng học sinh
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${student.fullname}</td>
@@ -673,6 +673,7 @@ function onClassScoreChange() {
 }
 
 function addScoreColumn(type, maxCount, labelPrefix) {
+ // nếu type score15p thì dùng score15pCount ngược lại dùng 45p
     let countVar = type === "score15p" ? score15pCount : score45pCount;
 
     // Kiểm tra giới hạn trước khi tăng
@@ -684,19 +685,20 @@ function addScoreColumn(type, maxCount, labelPrefix) {
     // Tăng count sau khi kiểm tra
     if (type === "score15p") score15pCount++;
     else score45pCount++;
-    countVar = type === "score15p" ? score15pCount : score45pCount;
+    countVar = type === "score15p" ? score15pCount : score45pCount; //gán lại giá trị
 
+    // Cập nhật lại colSpan
     const header = document.getElementById(`${type}_header`);
     if (header) header.colSpan = countVar;
 
     const tbody = document.getElementById("available_student_table");
-    const rows = tbody.getElementsByTagName("tr");
+    const rows = tbody.getElementsByTagName("tr"); //duyệt từng học sinh để thêm cột điểm mới
 
     for (let row of rows) {
-        const studentId = row.getAttribute("available_student_id");
+        const studentId = row.getAttribute("available_student_id"); // lấy giá trị student_Ids để gán name
         if (!studentId) continue;
 
-        const td = document.createElement("td");
+        const td = document.createElement("td"); //thêm cột
         td.innerHTML = `
             <label class="form-label me-1">Lần ${countVar}</label>
             <input type="number" class="form-control d-inline-block w-auto"
@@ -704,7 +706,7 @@ function addScoreColumn(type, maxCount, labelPrefix) {
                    oninput="validateScore(this)">
         `;
 
-        let insertIndex = 2;
+        let insertIndex = 2; //vị trí cần chèn ô mới
         if (type === "score15p") {
             insertIndex += countVar - 1;
         } else {
@@ -776,12 +778,12 @@ document.addEventListener("DOMContentLoaded", async function () {
         score45pCount = Math.min(draft.score45pCount || 1, 10);
         console.log('Restored counts:', { score15pCount, score45pCount });
 
-        if (!draft.grade || !draft.class_id || !draft.subject_id || !draft.semester_id) {
-            console.warn('Draft is missing required fields:', draft);
-            alert('Dữ liệu nháp không đầy đủ. Vui lòng chọn lại các trường.');
-            localStorage.removeItem('scoreDraft');
-            return;
-        }
+//        if (!draft.grade || !draft.class_id || !draft.subject_id || !draft.semester_id) {
+//            console.warn('Draft is missing required fields:', draft);
+//            alert('Dữ liệu nháp không đầy đủ. Vui lòng chọn lại các trường.');
+//            localStorage.removeItem('scoreDraft');
+//            return;
+//        }
 
         document.getElementById('grade').value = draft.grade;
         await new Promise((resolve, reject) => {
@@ -961,11 +963,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 function saveDraftUpdateScore() {
     try {
         const students = document.querySelectorAll('#studentTable_class tbody tr');
-        if (!students.length) {
-            console.warn('No students found in table');
-            alert('Không có học sinh nào để lưu nháp.');
-            return;
-        }
+//        if (!students.length) {
+//            console.warn('No students found in table');
+//            alert('Không có học sinh nào để lưu nháp.');
+//            return;
+//        }
 
         const draftData = [];
         students.forEach((studentRow) => {
@@ -1011,10 +1013,10 @@ function saveDraftUpdateScore() {
             lastSavedTime: new Date().toISOString()
         };
 
-        if (!draft.semester_id || !draft.subject_id || !draft.class_id || !draft.grade) {
-            alert('Vui lòng chọn đầy đủ các trường (Khối, Lớp, Học kỳ, Môn học) trước khi lưu nháp.');
-            return;
-        }
+//        if (!draft.semester_id || !draft.subject_id || !draft.class_id || !draft.grade) {
+//            alert('Vui lòng chọn đầy đủ các trường (Khối, Lớp, Học kỳ, Môn học) trước khi lưu nháp.');
+//            return;
+//        }
 
         localStorage.setItem('scoreDraft', JSON.stringify(draft));
         console.log('Draft saved:', draft);
@@ -1107,7 +1109,7 @@ function saveUpdateScore() {
 
             setTimeout(() => {
                 location.reload();
-            }, 3000);
+            }, 5000);
         } else {
             document.getElementById('responseMessage').innerHTML =
                 `<p style="color: red;">${data.message}</p>`;
@@ -1199,7 +1201,7 @@ function exportScore() {
 
 
 
-//-----------------XỬ LÝ THỐNG KÊ--------------------------------------------------
+////-----------------XỬ LÝ THỐNG KÊ--------------------------------------------------
 function onYearChange() {
     const year = document.getElementById("year_school_id").value;
     const semesterSelect = document.getElementById("semester_id");

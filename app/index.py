@@ -76,11 +76,9 @@ def upload_avatar():
         current_user.avatar = avatar_url
         db.session.commit()
 
-        flash('Cập nhật ảnh đại diện thành công!', 'success')
-    else:
-        flash('Chưa chọn file nào để upload!', 'warning')
 
-    return redirect(url_for('profile'))
+
+    return redirect(url_for('user_info'))
 
 rooms = {}
 
@@ -191,6 +189,9 @@ def register_student():
 def save_student():
     data = request.get_json()
 
+    if not data:
+        return jsonify({'success': False, 'message': 'Không nhận được dữ liệu JSON'})
+
     # Lấy dữ liệu từ form
     fullname = data.get('fullname')
     dob = data.get('dob')
@@ -212,6 +213,9 @@ def save_student():
         phone=phone,
         email=email
     )
+
+    if email:
+        utils.send_student_email(email, fullname)
 
     # Thêm sinh viên vào cơ sở dữ liệu
     try:
@@ -283,8 +287,8 @@ def edit_class():
     classes=dao.load_class()
     teachers=dao.load_teachers_with_assign_status()
     unassigned_students=dao.load_unassigned_students()
-    return render_template("edit_class.html",classes=classes,teachers=teachers,
-                           unassigned_students=unassigned_students)
+    return render_template("edit_class.html",classes = classes,teachers = teachers,
+                           unassigned_students = unassigned_students)
 
 @app.route('/api/class_info/<int:class_id>')
 def get_class_info(class_id):
@@ -369,14 +373,11 @@ def get_subject_by_teachID_classID(class_id):
     if not current_user.is_authenticated:
         return {"error": "Unauthorized"}
 
-    teacher = Teacher.query.filter_by(user_id=current_user.id).first()
+    teacher = dao.get_teacher_by_id(user_id = current_user.id)
     if not teacher:
-        return {"error": "Teacher not found"}
+        return {"error": "Không tìm thấy giáo viên "}
 
-    stc_list = Subject_Teacher_Class.query \
-        .filter_by(teacher_id=teacher.id, class_id=class_id) \
-        .join(Subject) \
-        .all()
+    stc_list = dao.load_subject_by_teacher_by_class(teacher_id = teacher.id,class_id = class_id)
 
     result = [{"id": stc.subject.id, "name": stc.subject.name} for stc in stc_list]
 
@@ -496,13 +497,12 @@ def calculate_avg_semester(student_id, semester_id):
 
     return final_avg
 
-
 @app.route('/api/get_score_by_class_id/<int:class_id>/<int:school_year_id>', methods=['GET'])
 def get_score_by_class_id(class_id,school_year_id):
     cls = Class.query.get(class_id)
     school_year=School_Year.query.get(school_year_id)
     if not cls or not school_year:
-        return jsonify({'error': 'Không tim thấy lớp hoặc năm học'})
+        return jsonify({'error': 'Không tìm thấy lớp hoặc năm học'})
 
     for s in school_year.semesters:
         print(s.id, s.name)
@@ -542,7 +542,7 @@ def export_score():
     school_year = School_Year.query.get(school_year_id)
 
     if not cls or not school_year:
-        return jsonify({'error': 'Không tìm thấy lớp hoặc năm học'}), 404
+        return jsonify({'error': 'Không tìm thấy lớp hoặc năm học'})
 
     # Khởi tạo workbook và worksheet
     wb = Workbook()
@@ -578,8 +578,8 @@ def export_score():
 @app.route('/export_score')
 def export_score_form():
     schoolyears = dao.load_school_year()
-    grades=dao.load_gradeEnum()
-    return render_template("export_score.html",schoolyears=schoolyears,grades=grades)
+    grades = dao.load_gradeEnum()
+    return render_template("export_score.html",schoolyears = schoolyears,grades = grades)
 
 if __name__ == '__main__':
     from app.admin import *

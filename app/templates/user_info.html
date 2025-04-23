@@ -8,7 +8,7 @@
             <div class="col-md-4">
                 <div class="profile-img">
                     <img id="avatarPreview" src="{{ current_user.avatar }}" alt="Avatar" style="max-width: 200px;"/>
-                    <div class="file btn btn-lg btn-primary mt-2">
+                    <div class="file btn btn-lg btn-primary mt-2" onclick="chooseImage()">
                         Chọn ảnh
                         <input type="file" name="avatar" id="avatar"/>
                     </div>
@@ -81,57 +81,6 @@
             <button type="button" id="saveAvatarBtn" class="profile-edit-avt-btn">Lưu thay đổi
             </button>
         </div>
-
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="alert-container">
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">
-                {{ message }}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
     </form>
 </div>
-
-<script>
-    document.getElementById("avatar").addEventListener("change", function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            // Hiển thị preview
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById("avatarPreview").src = e.target.result;
-            }
-            reader.readAsDataURL(file);
-
-            // Tự động upload khi chọn ảnh
-            const form = document.getElementById("avatarForm");
-            const formData = new FormData(form);
-
-            fetch(form.action, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(html => {
-                // Tạo 1 thẻ tạm chứa HTML response để lấy flash message
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
-
-                // Lấy message trong response nếu có
-                const alertBox = tempDiv.querySelector('.alert-container');
-                if (alertBox) {
-                    document.getElementById("flashMessage").innerHTML = alertBox.innerHTML;
-                }
-
-                // Lấy lại src ảnh mới từ Cloudinary nếu muốn (nếu trả về link mới)
-                // Hoặc reload nếu cần
-            });
-        }
-    });
-</script>
 {% endblock %}
